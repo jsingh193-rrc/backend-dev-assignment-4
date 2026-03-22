@@ -40,8 +40,18 @@ const authenticate = async (
         }
 
         const decodedToken: DecodedIdToken = await auth.verifyIdToken(token);
+        const role = (decodedToken as { role?: string }).role;
+
+        // Attach user context for downstream middleware and handlers
+        res.locals.user = {
+            uid: decodedToken.uid,
+            role,
+            email: decodedToken.email,
+        };
+
+        // Backward-compatible fields used by existing middleware
         res.locals.uid = decodedToken.uid;
-        res.locals.role = (decodedToken as { role?: string }).role;
+        res.locals.role = role;
         next();
     } catch (error: unknown) {
         if (error instanceof AuthenticationError) {
@@ -55,7 +65,7 @@ const authenticate = async (
                 )
             );
         } else {
-            next(
+            return next(
                 new AuthenticationError(
                     "Unauthorized: Invalid token",
                     "TOKEN_INVALID"
