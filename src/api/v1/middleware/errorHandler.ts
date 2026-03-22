@@ -33,10 +33,9 @@ const errorHandler = (
         return;
     }
 
-    // Log the error message for debugging
-    console.error(`Error: ${err.message}`);
+    const context = `${req.method} ${req.originalUrl}`;
+    console.error(`Error: ${err.message} :: ${context}`);
 
-    // Log stack trace for non-production environments
     if (process.env.NODE_ENV !== "production") {
         console.error(`Stack: ${err.stack}`);
     }
