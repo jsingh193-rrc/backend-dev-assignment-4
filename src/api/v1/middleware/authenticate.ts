@@ -1,10 +1,47 @@
+// External library imports
 import { Request, Response, NextFunction } from "express";
 import { DecodedIdToken } from "firebase-admin/auth";
 import { AuthenticationError } from "../errors/errors";
-import { getErrorMessage, getErrorCode } from "../utils/errorUtils";
 
 // Internal module imports
 import { auth } from "../../../config/firebaseConfig";
+
+type FirebaseLikeError = Error & { code?: string };
+
+const toAuthenticationError = (error: unknown): AuthenticationError => {
+    if (!(error instanceof Error)) {
+        return new AuthenticationError(
+            "Unauthorized: Invalid token",
+            "TOKEN_INVALID"
+        );
+    }
+
+    const firebaseError = error as FirebaseLikeError;
+    const code = firebaseError.code ?? "";
+
+    if (code === "auth/id-token-expired") {
+        return new AuthenticationError(
+            "Unauthorized: Token expired",
+            "TOKEN_EXPIRED"
+        );
+    }
+
+    if (
+        code === "auth/invalid-id-token" ||
+        code === "auth/argument-error" ||
+        code === "auth/id-token-revoked"
+    ) {
+        return new AuthenticationError(
+            "Unauthorized: Invalid token",
+            "TOKEN_INVALID"
+        );
+    }
+
+    return new AuthenticationError(
+        `Unauthorized: ${error.message}`,
+        code || "TOKEN_INVALID"
+    );
+};
 
 /**
  * Middleware to authenticate a user using a Firebase ID token.
@@ -28,11 +65,12 @@ const authenticate = async (
 ): Promise<void> => {
     try {
         const authHeader = req.headers.authorization;
-        const token: string | undefined = authHeader?.startsWith("Bearer ")
+        const hasBearerPrefix = authHeader?.startsWith("Bearer ");
+        const token: string | undefined = hasBearerPrefix
             ? authHeader.split(" ")[1]
             : undefined;
 
-        if (!token) {
+        if (!authHeader || !hasBearerPrefix || !token) {
             throw new AuthenticationError(
                 "Unauthorized: No token provided",
                 "TOKEN_NOT_FOUND"
@@ -55,23 +93,10 @@ const authenticate = async (
         next();
     } catch (error: unknown) {
         if (error instanceof AuthenticationError) {
-            // Re-throw authentication errors to be handled by error middleware
             return next(error);
-        } else if (error instanceof Error) {
-            return next(
-                new AuthenticationError(
-                    `Unauthorized: ${getErrorMessage(error)}`,
-                    getErrorCode(error)
-                )
-            );
-        } else {
-            return next(
-                new AuthenticationError(
-                    "Unauthorized: Invalid token",
-                    "TOKEN_INVALID"
-                )
-            );
         }
+
+        return next(toAuthenticationError(error));
     }
 };
 
