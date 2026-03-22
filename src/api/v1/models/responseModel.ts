@@ -14,3 +14,13 @@ export const errorResponse = (message: string, code: string) => ({
     },
     timestamp: new Date().toISOString(),
 });
+
+/**
+ * Creates a standardized success response object with metadata.
+ */
+export const successResponse = <T>(data: T, message?: string) => ({
+    success: true,
+    data,
+    message,
+    timestamp: new Date().toISOString(),
+});
