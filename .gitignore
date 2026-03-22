@@ -3,3 +3,6 @@ dist/
 logs/
 *.log
 firebase-service-account.json
+.env
+.env.*
+!.env.example

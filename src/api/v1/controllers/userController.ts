@@ -10,9 +10,14 @@ export const getUserDetails = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const { id } = req.params;
+    const idParam = req.params.id;
+    const id = Array.isArray(idParam) ? idParam[0] : idParam;
 
     try {
+        if (!id) {
+            throw new Error("User ID is required");
+        }
+
         const user: UserRecord = await auth.getUser(id);
         res.status(OK).json(successResponse(user));
     } catch (error) {

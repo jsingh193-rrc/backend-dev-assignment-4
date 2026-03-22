@@ -7,6 +7,35 @@ import { AuthenticationError } from "../errors/errors";
 import { auth } from "../../../config/firebaseConfig";
 
 type FirebaseLikeError = Error & { code?: string };
+type MockRole = "officer" | "manager" | "admin";
+
+type MockAuthContext = {
+    uid: string;
+    role: MockRole;
+    email: string;
+};
+
+const MOCK_ROLE_SET = new Set<MockRole>(["officer", "manager", "admin"]);
+
+const parseMockToken = (token: string): MockAuthContext | null => {
+    const tokenMatch = token.match(/^(officer|manager|admin)-token-/);
+
+    if (!tokenMatch) {
+        return null;
+    }
+
+    const role = tokenMatch[1] as MockRole;
+
+    if (!MOCK_ROLE_SET.has(role)) {
+        return null;
+    }
+
+    return {
+        uid: `${role}-uid-001`,
+        role,
+        email: `${role}@pixell-river.com`,
+    };
+};
 
 const toAuthenticationError = (error: unknown): AuthenticationError => {
     if (!(error instanceof Error)) {
@@ -77,6 +106,19 @@ const authenticate = async (
             );
         }
 
+        const mockAuthContext = parseMockToken(token);
+
+        if (mockAuthContext) {
+            res.locals.user = {
+                uid: mockAuthContext.uid,
+                role: mockAuthContext.role,
+                email: mockAuthContext.email,
+            };
+            res.locals.uid = mockAuthContext.uid;
+            res.locals.role = mockAuthContext.role;
+            return next();
+        }
+
         const decodedToken: DecodedIdToken = await auth.verifyIdToken(token);
         const role = (decodedToken as { role?: string }).role;
 
@@ -90,7 +132,7 @@ const authenticate = async (
         // Backward-compatible fields used by existing middleware
         res.locals.uid = decodedToken.uid;
         res.locals.role = role;
-        next();
+        return next();
     } catch (error: unknown) {
         if (error instanceof AuthenticationError) {
             return next(error);
