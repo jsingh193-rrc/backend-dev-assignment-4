@@ -65,7 +65,7 @@ const authenticate = async (
 ): Promise<void> => {
     try {
         const authHeader = req.headers.authorization;
-        const hasBearerPrefix = authHeader?.startsWith("Bearer ");
+        const hasBearerPrefix = authHeader && authHeader.startsWith("Bearer ");
         const token: string | undefined = hasBearerPrefix
             ? authHeader.split(" ")[1]
             : undefined;
