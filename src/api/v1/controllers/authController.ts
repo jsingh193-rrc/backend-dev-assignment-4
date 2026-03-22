@@ -1,27 +1,31 @@
 import { NextFunction, Request, Response } from "express";
-import { AuthenticationError, ServerError, ValidationError } from "../errors/errors";
+import { AuthenticationError, ValidationError } from "../errors/errors";
 
-type FirebaseSignInSuccess = {
-    idToken: string;
+type MockUser = {
     email: string;
     localId: string;
-    expiresIn: string;
-    refreshToken: string;
+    role: "officer" | "manager" | "admin";
 };
 
-type FirebaseErrorResponse = {
-    error?: {
-        message?: string;
-    };
-};
+const MOCK_PASSWORD = "password123";
 
-const INVALID_CREDENTIAL_ERRORS = new Set([
-    "INVALID_PASSWORD",
-    "EMAIL_NOT_FOUND",
-    "INVALID_LOGIN_CREDENTIALS",
-    "INVALID_EMAIL",
-    "USER_DISABLED",
-]);
+const MOCK_USERS: MockUser[] = [
+    {
+        email: "officer@pixell-river.com",
+        localId: "officer-uid-001",
+        role: "officer",
+    },
+    {
+        email: "manager@pixell-river.com",
+        localId: "manager-uid-001",
+        role: "manager",
+    },
+    {
+        email: "admin@pixell-river.com",
+        localId: "admin-uid-001",
+        role: "admin",
+    },
+];
 
 export const signIn = async (
     req: Request,
@@ -42,74 +46,22 @@ export const signIn = async (
         );
     }
 
-    const firebaseApiKey = process.env.FIREBASE_WEB_API_KEY;
+    const mockUser = MOCK_USERS.find((user) => user.email === email);
 
-    if (!firebaseApiKey) {
+    if (!mockUser || password !== MOCK_PASSWORD) {
         return next(
-            new ServerError(
-                "Server misconfiguration: FIREBASE_WEB_API_KEY is missing",
-                "FIREBASE_API_KEY_MISSING"
+            new AuthenticationError(
+                "Unauthorized: Invalid email or password",
+                "INVALID_LOGIN_CREDENTIALS"
             )
         );
     }
 
-    try {
-        const response = await fetch(
-            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseApiKey}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    email,
-                    password,
-                    returnSecureToken: true,
-                }),
-            }
-        );
-
-        if (!response.ok) {
-            const errorPayload = (await response.json()) as FirebaseErrorResponse;
-            const firebaseMessage = errorPayload.error?.message ?? "INVALID_LOGIN_CREDENTIALS";
-
-            if (INVALID_CREDENTIAL_ERRORS.has(firebaseMessage)) {
-                return next(
-                    new AuthenticationError(
-                        "Unauthorized: Invalid email or password",
-                        firebaseMessage
-                    )
-                );
-            }
-
-            return next(
-                new AuthenticationError(
-                    `Unauthorized: ${firebaseMessage}`,
-                    firebaseMessage
-                )
-            );
-        }
-
-        const data = (await response.json()) as FirebaseSignInSuccess;
-
-        res.status(200).json({
-            idToken: data.idToken,
-            email: data.email,
-            localId: data.localId,
-            expiresIn: data.expiresIn,
-            refreshToken: data.refreshToken,
-        });
-    } catch (error) {
-        return next(
-            error instanceof Error
-                ? new ServerError(
-                      `Failed to sign in with Firebase: ${error.message}`,
-                      "FIREBASE_SIGNIN_FAILED"
-                  )
-                : new ServerError(
-                      "Failed to sign in with Firebase",
-                      "FIREBASE_SIGNIN_FAILED"
-                  )
-        );
-    }
+    res.status(200).json({
+        idToken: `${mockUser.role}-token-abc123`,
+        email: mockUser.email,
+        localId: mockUser.localId,
+        expiresIn: "3600",
+        refreshToken: `${mockUser.role}-refresh-token`,
+    });
 };
